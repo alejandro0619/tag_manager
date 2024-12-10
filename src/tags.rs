@@ -12,17 +12,6 @@ enum ImageFormat {
 pub struct TagManager {}
 
 impl TagManager {
-    pub fn new() -> Self {
-        TagManager {}
-    }
-
-    fn get_image_format(path: &Path) -> Option<ImageFormat> {
-        match path.extension()?.to_str()?.to_lowercase().as_str() {
-            "png" => Some(ImageFormat::PNG),
-            "jpg" | "jpeg" => Some(ImageFormat::JPG),
-            _ => None,
-        }
-    }
 
     pub fn add_png_metadata(
         file_path: &Path,
@@ -63,8 +52,6 @@ impl TagManager {
                 text_chunk.text.clone(),
             ));
         }
-
-    
         Ok(metadata)
     }
 
