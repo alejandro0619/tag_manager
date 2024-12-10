@@ -1,0 +1,9 @@
+[package]
+name = "tag_manager"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+png = "0.17.15"
+rexif = "0.7.5"
