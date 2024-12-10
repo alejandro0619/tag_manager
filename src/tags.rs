@@ -1,5 +1,5 @@
 use png::Decoder;
-use std::fs::{File};
+use std::fs::{File, self};
 use std::io::{BufReader, BufWriter};
 use std::path::Path;
 
@@ -12,6 +12,13 @@ enum ImageFormat {
 pub struct TagManager {}
 
 impl TagManager {
+    fn get_image_format(path: &Path) -> Option<ImageFormat> {
+        match path.extension()?.to_str()?.to_lowercase().as_str() {
+            "png" => Some(ImageFormat::PNG),
+            "jpg" | "jpeg" => Some(ImageFormat::JPG),
+            _ => None,
+        }
+    }
 
     pub fn add_png_metadata(
         file_path: &Path,
@@ -55,4 +62,61 @@ impl TagManager {
         Ok(metadata)
     }
 
+    pub fn scan_images_with_tags(folder_path: &str) {
+        let allowed_extensions = ["jpg", "png"];
+        let entries = match fs::read_dir(folder_path) {
+            Ok(entries) => entries,
+            Err(e) => {
+                eprintln!("Failed to read folder: {}", e);
+                return;
+            }
+        };
+
+        for entry in entries {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(e) => {
+                    eprintln!("Failed to process entry: {}", e);
+                    continue;
+                }
+            };
+
+            let path = entry.path();
+            if path.is_file() {
+                if let Some(extension) = path.extension() {
+                    if let Some(ext_str) = extension.to_str() {
+                        if allowed_extensions.contains(&ext_str.to_lowercase().as_str()) {
+                            println!("Processing image: {:?}", path.file_name());
+
+                            match TagManager::get_image_format(&path) {
+                                Some(ImageFormat::PNG) => {
+                                    match TagManager::read_png_metadata(&path) {
+                                        Ok(metadata) => {
+                                            if metadata.is_empty() {
+                                                println!("  No metadata found.");
+                                            } else {
+                                                println!("  Metadata:");
+                                                for (key, value) in metadata {
+                                                    println!("    {}: {}", key, value);
+                                                }
+                                            }
+                                        }
+                                        Err(e) => {
+                                            println!("  Failed to read PNG metadata: {}", e);
+                                        }
+                                    }
+                                }
+                                Some(ImageFormat::JPG) => {
+                                    println!("  Metadata reading not implemented for JPG.");
+                                }
+                                None => {
+                                    println!("  Unsupported file format.");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

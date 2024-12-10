@@ -1,112 +1,107 @@
-mod scanner;
-mod tags;
-use std::io;
+use clap::{Parser, Subcommand};
 use std::path::Path;
 use tags::TagManager;
 
+mod scanner;
+mod tags;
+
+/// Tag Manager CLI Application
+#[derive(Parser)]
+#[command(name = "Tag Manager")]
+#[command(author = "Your Name <alejandrolpz0619@gmail.com>")]
+#[command(version = "1.0")]
+#[command(about = "Manage tags for image files", long_about = None)]
+struct CLI {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand)]
+enum Commands {
+    /// Scan a folder for images
+    ScanFolder {
+        /// Folder path to scan for images
+        folder_path: String,
+    },
+    /// Add metadata to a PNG file
+    AddMetadata {
+        /// Path to the PNG file
+        file_path: String,
+        /// Metadata key
+        key: String,
+        /// Metadata value
+        value: String,
+    },
+    /// View metadata of a PNG file
+    ViewMetadata {
+        /// Path to the PNG file
+        file_path: String,
+    },
+    /// Verify metadata of a PNG file
+    VerifyMetadata {
+        /// Path to the PNG file
+        file_path: String,
+        /// Metadata key to verify
+        key: String,
+    },
+    /// Scan a folder for tags
+    ScanFolderTags {
+        /// Folder path to scan for images with tags
+        folder_path: String,
+    },
+}
 
 fn main() {
-    println!("Tag Manager - Choose an option:");
-    println!("1. Scan folder for images");
-    println!("2. Add metadata to PNG file");
-    println!("3. View PNG metadata");
-    println!("4. Verify PNG metadata");
-    
-    let mut choice = String::new();
-    io::stdin()
-        .read_line(&mut choice)
-        .expect("Failed to read input");
+    let cli = CLI::parse();
 
-    match choice.trim() {
-        "1" => scan_folder(),
-        "2" => add_metadata(),
-        "3" => read_metadata(),
-        "4" => verify_metadata(),
-        _ => println!("Invalid option"),
+    match &cli.command {
+        Commands::ScanFolder { folder_path } => scan_folder(folder_path),
+        Commands::AddMetadata {
+            file_path,
+            key,
+            value,
+        } => add_metadata(file_path, key, value),
+        Commands::ViewMetadata { file_path } => view_metadata(file_path),
+        Commands::VerifyMetadata { file_path, key } => verify_metadata(file_path, key),
+        Commands::ScanFolderTags { folder_path } => scan_folder_with_tags(folder_path),
     }
 }
 
-// The other functions remain the same as in the original code
+fn scan_folder(folder_path: &str) {
+    let path = Path::new(folder_path);
 
-
-fn scan_folder() {
-    println!("Enter the absolute folder path to scan for images:");
-
-    let mut folder_path = String::new();
-    io::stdin()
-        .read_line(&mut folder_path)
-        .expect("Failed to read input");
-
-    let folder_path = folder_path.trim();
-    let folder_path = Path::new(folder_path);
-
-    if !folder_path.exists() || !folder_path.is_dir() {
+    if !path.exists() || !path.is_dir() {
         eprintln!("The provided path does not exist or is not a directory: {:?}", folder_path);
         return;
     }
 
-    let absolute_path = folder_path.canonicalize().expect("Failed to get absolute path");
-
-    if let Err(e) = scanner::scan_images(absolute_path.to_str().unwrap()) {
+    if let Err(e) = scanner::scan_images(folder_path) {
         eprintln!("Error scanning folder: {}", e);
     }
 }
 
-fn add_metadata() {
-    println!("Enter the PNG file path (absolute or relative):");
-    let mut file_path = String::new();
-    io::stdin()
-        .read_line(&mut file_path)
-        .expect("Failed to read input");
+fn add_metadata(file_path: &str, key: &str, value: &str) {
+    let path = Path::new(file_path);
 
-    let file_path = Path::new(file_path.trim());
-    
-    // Convert to absolute path and verify it exists
-    if !file_path.exists() {
+    if !path.exists() {
         eprintln!("The provided file does not exist: {:?}", file_path);
         return;
     }
 
-    let absolute_path = file_path.canonicalize()
-        .expect("Failed to get absolute path");
-
-    println!("Enter the metadata key:");
-    let mut key = String::new();
-    io::stdin()
-        .read_line(&mut key)
-        .expect("Failed to read input");
-
-    println!("Enter the metadata value:");
-    let mut value = String::new();
-    io::stdin()
-        .read_line(&mut value)
-        .expect("Failed to read input");
-    
-    if let Err(e) = TagManager::add_png_metadata(&absolute_path, key.trim(), value.trim()) {
+    if let Err(e) = TagManager::add_png_metadata(path, key, value) {
         eprintln!("Error adding metadata: {}", e);
     }
 }
 
-fn read_metadata() {
-    println!("Enter the PNG file path (absolute or relative):");
-    let mut file_path = String::new();
-    io::stdin()
-        .read_line(&mut file_path)
-        .expect("Failed to read input");
+fn view_metadata(file_path: &str) {
+    let path = Path::new(file_path);
 
-    let file_path = Path::new(file_path.trim());
-    
-    // Convert to absolute path and verify it exists
-    if !file_path.exists() {
+    if !path.exists() {
         eprintln!("The provided file does not exist: {:?}", file_path);
         return;
     }
 
-    let absolute_path = file_path
-        .canonicalize()
-        .expect("Failed to get absolute path");
-
-    match TagManager::read_png_metadata(&absolute_path) {
+    match TagManager::read_png_metadata(path) {
         Ok(metadata) => {
             if metadata.is_empty() {
                 println!("No metadata found in the PNG file.");
@@ -121,35 +116,16 @@ fn read_metadata() {
     }
 }
 
+fn verify_metadata(file_path: &str, key: &str) {
+    let path = Path::new(file_path);
 
-fn verify_metadata() {
-    println!("Enter the PNG file path (absolute or relative):");
-    let mut file_path = String::new();
-    io::stdin()
-        .read_line(&mut file_path)
-        .expect("Failed to read input");
-
-    println!("Enter the metadata key to verify:");
-    let mut key = String::new();
-    io::stdin()
-        .read_line(&mut key)
-        .expect("Failed to read input");
-
-    let file_path = Path::new(file_path.trim());
-    
-    // Convert to absolute path and verify it exists
-    if !file_path.exists() {
+    if !path.exists() {
         eprintln!("The provided file does not exist: {:?}", file_path);
         return;
     }
 
-    let absolute_path = file_path
-        .canonicalize()
-        .expect("Failed to get absolute path");
-
-    match TagManager::read_png_metadata(&absolute_path) {
+    match TagManager::read_png_metadata(path) {
         Ok(metadata) => {
-            let key = key.trim();
             if let Some(value) = metadata.iter().find(|(k, _)| k == key).map(|(_, v)| v) {
                 println!("Metadata found: Key: {}, Value: {}", key, value);
             } else {
@@ -160,3 +136,6 @@ fn verify_metadata() {
     }
 }
 
+fn scan_folder_with_tags(folder_path: &str) {
+    TagManager::scan_images_with_tags(folder_path);
+}
