@@ -58,6 +58,11 @@ enum Commands {
         folder_path: String,
     },
     ViewDefaultFolder,
+    /// List all files with tags in the default folder
+    ListFilesWithTags {
+        /// Folder path to list files with tags
+        folder_path: Option<String>,
+    },
 }
 
 fn main() {
@@ -98,6 +103,9 @@ fn main() {
                 println!("No default folder set.");
             }
         }
+        Commands::ListFilesWithTags { folder_path } => {
+            list_files_with_tags(folder_path.as_deref());
+        }
     }
 }
 
@@ -113,11 +121,12 @@ fn scan_folder(folder_path: &str) {
         eprintln!("Error scanning folder: {}", e);
     }
 }
-
 fn add_metadata(file_name_or_path: &str, key: &str, value: &str) {
     let config = config::Config::load();
     let mut file_path = None;
+
     println!("Adding metadata to file: {}", file_name_or_path);
+
     // Step 1: Check in default folder
     if let Some(default_folder) = config.get_default_folder() {
         let potential_path = Path::new(&default_folder).join(file_name_or_path);
@@ -136,7 +145,19 @@ fn add_metadata(file_name_or_path: &str, key: &str, value: &str) {
 
     // Step 3: Handle cases where file is not found
     if let Some(file_path) = file_path {
-        if let Err(e) = TagManager::add_png_metadata(&file_path, key, value) {
+        // Read existing metadata
+        let existing_metadata = TagManager::read_png_metadata(&file_path).unwrap_or_default();
+
+        // Prepare updated metadata
+        let updated_value = if let Some((_, existing_value)) = 
+            existing_metadata.iter().find(|(existing_key, _)| existing_key == key) {
+            format!("{}; {}", existing_value, value) // Concatenate with semicolon
+        } else {
+            value.to_string()
+        };
+
+        // Add or update the key-value pair
+        if let Err(e) = TagManager::add_png_metadata(&file_path, key, &updated_value) {
             eprintln!("Error adding metadata: {}", e);
         } else {
             println!(
@@ -151,6 +172,8 @@ fn add_metadata(file_name_or_path: &str, key: &str, value: &str) {
         );
     }
 }
+
+
 
 
 fn view_metadata(file_path: &str) {
@@ -198,4 +221,66 @@ fn verify_metadata(file_path: &str, key: &str) {
 
 fn scan_folder_with_tags(folder_path: &str) {
     TagManager::scan_images_with_tags(folder_path);
+}
+
+fn list_files_with_tags(folder_path: Option<&str>) {
+    let config = config::Config::load();
+    let folder = match folder_path {
+        Some(path) => Path::new(path).to_path_buf(),
+        None => match config.default_folder {
+            Some(default_path) => Path::new(&default_path).to_path_buf(),
+            None => {
+                eprintln!("No folder path provided, and no default folder is set.");
+                return;
+            }
+        },
+    };
+
+    if !folder.exists() || !folder.is_dir() {
+        eprintln!(
+            "The provided folder path '{}' does not exist or is not a directory.",
+            folder.display()
+        );
+        return;
+    }
+
+    println!(
+        "{:<30} {:<50}",
+        "File Name", "Tags"
+    );
+    println!("{}", "-".repeat(80));
+
+    let entries = match std::fs::read_dir(&folder) {
+        Ok(entries) => entries,
+        Err(e) => {
+            eprintln!("Error reading directory '{}': {}", folder.display(), e);
+            return;
+        }
+    };
+
+    for entry in entries {
+        if let Ok(entry) = entry {
+            let path = entry.path();
+            if path.is_file() && path.extension().map_or(false, |ext| ext.eq_ignore_ascii_case("png")) {
+                let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+                match TagManager::read_png_metadata(&path) {
+                    Ok(metadata) => {
+                        let tags: Vec<_> = metadata
+                            .iter()
+                            .map(|(key, value)| format!("{}: {}", key, value))
+                            .collect();
+                        let tags_str = if tags.is_empty() {
+                            "No tags".to_string()
+                        } else {
+                            tags.join(", ")
+                        };
+                        println!("{:<30} {:<50}", file_name, tags_str);
+                    }
+                    Err(_) => {
+                        println!("{:<30} {:<50}", file_name, "Error reading tags");
+                    }
+                }
+            }
+        }
+    }
 }

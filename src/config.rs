@@ -7,7 +7,7 @@ use std::io::Read;
 /// Configuration structure for storing application settings
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
-    default_folder: Option<String>,
+    pub default_folder: Option<String>,
 }
 
 impl Config {
